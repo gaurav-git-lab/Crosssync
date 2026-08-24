@@ -34,18 +34,13 @@ jobs:
       - name: Generate Desktop App Icons
         run: node ./scripts/generate-icons.cjs
 
-      - name: Install Root Frontend Dependencies
+      - name: Install Frontend Dependencies
         run: npm install
 
       - name: Build Web Frontend Assets
         run: npm run build
 
-      - name: Install Desktop Dependencies
-        working-directory: ./desktop
-        run: npm install
-
       - name: Build Windows Tauri App (.exe / .msi)
-        working-directory: ./desktop
         run: npx @tauri-apps/cli build
 
       - name: Upload Windows NSIS Setup (.exe) & MSI Installer
@@ -53,9 +48,11 @@ jobs:
         with:
           name: CrossSync-Windows-Installer-x64
           path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/*.exe
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/msi/*.msi
-            desktop/src-tauri/target/release/crosssync-desktop.exe
           if-no-files-found: warn
 
   # ==========================================
@@ -79,18 +76,15 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: false
 
       - name: Generate Mobile App Icons
         run: node ./scripts/generate-icons.cjs
 
-      - name: Initialize Android Skeleton & Dependencies
+      - name: Prepare Flutter Android Project
         working-directory: ./mobile
         run: |
-          if [ ! -d "android" ]; then
-            echo "Creating Flutter Android wrapper..."
-            flutter create . --platforms=android --org=com.crosssync
-          fi
+          mkdir -p assets/icons
+          flutter create . --platforms=android --org=com.crosssync --project-name=crosssync_mobile --overwrite
           flutter pub get
 
       - name: Build Android Release APK
@@ -103,3 +97,36 @@ jobs:
           name: CrossSync-Android-Release-APK
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
+
+  # ==========================================
+  # 🚀 JOB 3: Publish GitHub Release (When Tagged)
+  # ==========================================
+  publish-release:
+    name: Create GitHub Release with Binaries
+    needs: [build-windows-desktop, build-android-apk]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: CrossSync-Windows-Installer-x64
+          path: release-binaries/windows
+
+      - name: Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: CrossSync-Android-Release-APK
+          path: release-binaries/android
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-binaries/windows/*.exe
+            release-binaries/windows/*.msi
+            release-binaries/android/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
