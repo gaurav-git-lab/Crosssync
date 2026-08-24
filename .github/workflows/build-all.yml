@@ -11,7 +11,7 @@ on:
 
 jobs:
   # ==========================================
-  # 💻 JOB 1: Build Windows Desktop App (.exe & .msi)
+  # 💻 JOB 1: Build Windows Desktop App (.exe / .msi)
   # ==========================================
   build-windows-desktop:
     name: Build Windows Desktop (.exe / .msi)
@@ -31,26 +31,21 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Cache Cargo Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            desktop/src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Generate Desktop App Icons
+        run: node ./scripts/generate-icons.cjs
 
-      - name: Install Frontend Dependencies
+      - name: Install Root Frontend Dependencies
         run: npm install
 
       - name: Build Web Frontend Assets
         run: npm run build
 
+      - name: Install Desktop Dependencies
+        working-directory: ./desktop
+        run: npm install
+
       - name: Build Windows Tauri App (.exe / .msi)
+        working-directory: ./desktop
         run: npx @tauri-apps/cli build
 
       - name: Upload Windows NSIS Setup (.exe) & MSI Installer
@@ -84,26 +79,23 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
+          cache: false
 
-      - name: Check Flutter Version
-        run: flutter --version
+      - name: Generate Mobile App Icons
+        run: node ./scripts/generate-icons.cjs
 
-      - name: Install Mobile Flutter Dependencies
+      - name: Initialize Android Skeleton & Dependencies
         working-directory: ./mobile
-        run: flutter pub get
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Creating Flutter Android wrapper..."
+            flutter create . --platforms=android --org=com.crosssync
+          fi
+          flutter pub get
 
       - name: Build Android Release APK
         working-directory: ./mobile
-        run: |
-          # If android platform folder is initialized, build apk
-          if [ -d "android" ]; then
-            flutter build apk --release
-          else
-            # Initialize android project wrapper if needed and build
-            flutter create . --platforms=android --org=com.crosssync
-            flutter build apk --release
-          fi
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload Android Release APK (.apk)
         uses: actions/upload-artifact@v4
@@ -111,36 +103,3 @@ jobs:
           name: CrossSync-Android-Release-APK
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
-
-  # ==========================================
-  # 🚀 JOB 3: Publish GitHub Release (When Tagged)
-  # ==========================================
-  publish-release:
-    name: Create GitHub Release with Binaries
-    needs: [build-windows-desktop, build-android-apk]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download Windows Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: CrossSync-Windows-Installer-x64
-          path: release-binaries/windows
-
-      - name: Download Android Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: CrossSync-Android-Release-APK
-          path: release-binaries/android
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release-binaries/windows/*.exe
-            release-binaries/windows/*.msi
-            release-binaries/android/*.apk
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
