@@ -1,0 +1,6 @@
+{
+  "name": "CrossSync",
+  "description": "Cross-platform file, image, and clipboard sync between Windows and Android with liquid-glass UI, AES-256 encryption, and instant pairing.",
+  "requestFramePermissions": ["clipboard-read", "clipboard-write", "camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,35 @@
+name: crosssync_mobile
+description: CrossSync Android Mobile Application built with Flutter
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  flutter_bluetooth_serial: ^0.4.0
+  flutter_foreground_task: ^6.1.0
+  clipboard_watcher: ^0.2.0
+  crypto: ^3.0.3
+  encrypt: ^5.0.3
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.1.0
+  web_socket_channel: ^2.4.0
+  shared_preferences: ^2.2.2
+  lucide_icons: ^0.257.0
+  vibration: ^1.8.4
+  receive_sharing_intent: ^1.4.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
