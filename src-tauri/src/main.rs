@@ -34,6 +34,7 @@ pub struct ClipboardPayload {
     pub timestamp: u64,
 }
 
+// Global thread-safe state container for CrossSync runtime
 pub struct AppState {
     pub paired_devices: Mutex<Vec<DeviceInfo>>,
     pub is_sync_enabled: Mutex<bool>,
@@ -69,13 +70,16 @@ fn main() {
     tauri::Builder::default()
         .manage(state.clone())
         .invoke_handler(tauri::generate_handler![
+            // Bluetooth commands
             commands::bluetooth::scan_bluetooth_devices,
             commands::bluetooth::get_paired_bluetooth_devices,
             commands::bluetooth::pair_bluetooth_device,
             commands::bluetooth::trigger_auto_bluetooth,
+            // Clipboard commands
             commands::clipboard::send_clipboard_event,
             commands::clipboard::set_system_clipboard,
             commands::clipboard::get_clipboard_history,
+            // File commands
             commands::file::prepare_file_transfer,
             commands::file::receive_file_chunk,
             commands::file::finalize_received_file,

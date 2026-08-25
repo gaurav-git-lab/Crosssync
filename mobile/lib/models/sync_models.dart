@@ -1,59 +1,45 @@
-// Flutter Dart Data Models for CrossSync
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
-
-enum DevicePlatform { windows, android, macos, linux, ios }
-enum TransferDirection { incoming, outgoing }
-enum TransferStatus { pending, inProgress, completed, failed, cancelled }
-
-class DeviceInfo {
+class DiscoveredDevice {
   final String id;
   final String name;
-  final DevicePlatform platform;
-  final bool isOnline;
-  final bool isBluetoothEnabled;
-  final String? ipAddress;
-  final String? bluetoothMac;
-  final int lastSeen;
+  final String bluetoothAddress;
+  final bool isPaired;
+  final bool canPair;
+  final String deviceType;
+  final int? rssi;
+  final List<String> gattServices;
 
-  DeviceInfo({
+  DiscoveredDevice({
     required this.id,
     required this.name,
-    required this.platform,
-    this.isOnline = false,
-    this.isBluetoothEnabled = true,
-    this.ipAddress,
-    this.bluetoothMac,
-    required this.lastSeen,
+    required this.bluetoothAddress,
+    required this.isPaired,
+    required this.canPair,
+    required this.deviceType,
+    this.rssi,
+    required this.gattServices,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'device_name': name,
-      'platform': platform.name,
-      'is_online': isOnline ? 1 : 0,
-      'is_trusted': 1,
-      'bluetooth_mac': bluetoothMac,
-      'ip_address': ipAddress,
-      'last_seen': lastSeen,
-      'paired_at': DateTime.now().millisecondsSinceEpoch,
-      'public_key': '04_ec_pub_key',
+      'name': name,
+      'bluetooth_address': bluetoothAddress,
+      'is_paired': isPaired ? 1 : 0,
+      'device_type': deviceType,
+      'rssi': rssi,
     };
   }
 
-  factory DeviceInfo.fromMap(Map<String, dynamic> map) {
-    return DeviceInfo(
-      id: map['id'],
-      name: map['device_name'],
-      platform: DevicePlatform.values.firstWhere(
-        (e) => e.name == map['platform'],
-        orElse: () => DevicePlatform.windows,
-      ),
-      isOnline: map['is_online'] == 1,
-      ipAddress: map['ip_address'],
-      bluetoothMac: map['bluetooth_mac'],
-      lastSeen: map['last_seen'] ?? 0,
+  factory DiscoveredDevice.fromMap(Map<String, dynamic> map) {
+    return DiscoveredDevice(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      bluetoothAddress: map['bluetooth_address'] ?? '',
+      isPaired: map['is_paired'] == 1,
+      canPair: true,
+      deviceType: map['device_type'] ?? 'Unknown',
+      rssi: map['rssi'],
+      gattServices: const [],
     );
   }
 }
@@ -61,39 +47,87 @@ class DeviceInfo {
 class ClipboardItem {
   final String id;
   final String content;
-  final String contentType;
   final String sourceDeviceId;
   final String sourcePlatform;
   final int timestamp;
-  final bool isPinned;
-  final String contentHash;
+  final String hash;
 
   ClipboardItem({
     required this.id,
     required this.content,
-    this.contentType = 'text/plain',
     required this.sourceDeviceId,
     required this.sourcePlatform,
     required this.timestamp,
-    this.isPinned = false,
-    required this.contentHash,
+    required this.hash,
   });
-
-  static String computeHash(String text) {
-    return sha256.convert(utf8.encode(text)).toString();
-  }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'content': content,
-      'content_type': contentType,
       'source_device_id': sourceDeviceId,
       'source_platform': sourcePlatform,
       'timestamp': timestamp,
-      'is_pinned': isPinned ? 1 : 0,
-      'content_hash': contentHash,
-      'char_count': content.length,
+      'hash': hash,
     };
+  }
+
+  factory ClipboardItem.fromMap(Map<String, dynamic> map) {
+    return ClipboardItem(
+      id: map['id'] ?? '',
+      content: map['content'] ?? '',
+      sourceDeviceId: map['source_device_id'] ?? '',
+      sourcePlatform: map['source_platform'] ?? '',
+      timestamp: map['timestamp'] ?? 0,
+      hash: map['hash'] ?? '',
+    );
+  }
+}
+
+class FileTransferRecord {
+  final String id;
+  final String fileName;
+  final int fileSize;
+  final String senderDeviceId;
+  final String receiverDeviceId;
+  final String status;
+  final String? filePath;
+  final int timestamp;
+
+  FileTransferRecord({
+    required this.id,
+    required this.fileName,
+    required this.fileSize,
+    required this.senderDeviceId,
+    required this.receiverDeviceId,
+    required this.status,
+    this.filePath,
+    required this.timestamp,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'file_name': fileName,
+      'file_size': fileSize,
+      'sender_device_id': senderDeviceId,
+      'receiver_device_id': receiverDeviceId,
+      'status': status,
+      'file_path': filePath,
+      'timestamp': timestamp,
+    };
+  }
+
+  factory FileTransferRecord.fromMap(Map<String, dynamic> map) {
+    return FileTransferRecord(
+      id: map['id'] ?? '',
+      fileName: map['file_name'] ?? '',
+      fileSize: map['file_size'] ?? 0,
+      senderDeviceId: map['sender_device_id'] ?? '',
+      receiverDeviceId: map['receiver_device_id'] ?? '',
+      status: map['status'] ?? 'pending',
+      filePath: map['file_path'],
+      timestamp: map['timestamp'] ?? 0,
+    );
   }
 }

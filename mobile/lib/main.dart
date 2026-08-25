@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'models/sync_models.dart';
 import 'services/bluetooth_sync_service.dart';
 import 'services/clipboard_service.dart';
+import 'services/file_service.dart';
 import 'database/sqlite_db.dart';
 
 void main() {
@@ -16,34 +17,39 @@ class CrossSyncApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CrossSync',
+      title: 'CrossSync Companion',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      darkTheme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0D1117),
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        primaryColor: const Color(0xFF3B82F6),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E5FF),
-          secondary: Color(0xFF7C4DFF),
-          surface: Color(0xFF161B22),
+          primary: Color(0xFF3B82F6),
+          surface: Color(0xFF1E293B),
         ),
       ),
-      home: const MobileHomeScreen(),
+      home: const CrossSyncHomePage(),
     );
   }
 }
 
-class MobileHomeScreen extends StatefulWidget {
-  const MobileHomeScreen({super.key});
+class CrossSyncHomePage extends StatefulWidget {
+  const CrossSyncHomePage({super.key});
 
   @override
-  State<MobileHomeScreen> createState() => _MobileHomeScreenState();
+  State<CrossSyncHomePage> createState() => _CrossSyncHomePageState();
 }
 
-class _MobileHomeScreenState extends State<MobileHomeScreen> {
-  final BluetoothSyncService _btService = BluetoothSyncService();
+class _CrossSyncHomePageState extends State<CrossSyncHomePage> {
+  final BluetoothSyncService _bluetoothService = BluetoothSyncService();
   final ClipboardService _clipboardService = ClipboardService();
-  List<ClipboardItem> _clipboardHistory = [];
-  bool _isAutoBtEnabled = true;
+  final FileService _fileService = FileService();
+  final CrossSyncDatabase _db = CrossSyncDatabase.instance;
+
+  bool _isSyncEnabled = true;
+  bool _isConnected = true;
+  String _lastSyncedText = "https://github.com/crosssync/protocol-spec";
+  List<ClipboardItem> _history = [];
+  List<DiscoveredDevice> _devices = [];
 
   @override
   void initState() {
@@ -51,40 +57,58 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     _initServices();
   }
 
-  void _initServices() {
-    _clipboardService.startListening((item) {
-      _btService.sendClipboard(item);
-      CrossSyncDatabase.instance.insertClipboard(item);
-      _loadHistory();
+  void _initServices() async {
+    _clipboardService.startListening();
+    _clipboardService.onClipboardChanged.listen((item) {
+      if (_isSyncEnabled) {
+        setState(() {
+          _lastSyncedText = item.content;
+          _history.insert(0, item);
+        });
+        _db.insertClipboard(item);
+        _bluetoothService.sendEncryptedClipboard(item.content);
+      }
     });
-    _loadHistory();
+
+    _bluetoothService.onDeviceDiscovered.listen((device) {
+      setState(() {
+        if (!_devices.any((d) => d.id == device.id)) {
+          _devices.add(device);
+        }
+      });
+      _db.insertDevice(device);
+    });
+
+    final savedHistory = await _db.getRecentClipboard();
+    setState(() {
+      _history = savedHistory;
+    });
   }
 
-  Future<void> _loadHistory() async {
-    final list = await CrossSyncDatabase.instance.getRecentClipboard();
-    setState(() {
-      _clipboardHistory = list;
-    });
+  @override
+  void dispose() {
+    _clipboardService.dispose();
+    _bluetoothService.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0F17),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF1E293B),
         elevation: 0,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: const Color(0xFF00E5FF).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
+                color: const Color(0xFF3B82F6),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.sync_alt, color: Color(0xFF00E5FF), size: 20),
+              child: const Icon(LucideIcons.repeat, size: 20, color: Colors.white),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             const Text(
               'CrossSync',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -94,95 +118,159 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         actions: [
           IconButton(
             icon: Icon(
-              _btService.isBluetoothActive ? Icons.bluetooth : Icons.bluetooth_disabled,
-              color: _btService.isBluetoothActive ? const Color(0xFF00E5FF) : Colors.grey,
+              _isConnected ? LucideIcons.bluetoothConnected : LucideIcons.bluetoothOff,
+              color: _isConnected ? const Color(0xFF10B981) : Colors.grey,
             ),
             onPressed: () {
               setState(() {
-                _btService.isBluetoothActive = !_btService.isBluetoothActive;
+                _isConnected = !_isConnected;
               });
             },
           ),
           IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
+            icon: const Icon(LucideIcons.settings, color: Colors.white70),
             onPressed: () {},
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.pad(BorderSide(color: Colors.white.withOpacity(0.1))),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Connection Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.laptop_chromebook, color: Color(0xFF00E5FF), size: 32),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          "Gaurav's ThinkPad X1",
-                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _isConnected ? const Color(0xFF10B981).withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    LucideIcons.laptop,
+                    color: _isConnected ? const Color(0xFF10B981) : Colors.redAccent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Windows Laptop Link',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isConnected ? 'Connected • AES-256-GCM Secure Channel' : 'Disconnected',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isConnected ? const Color(0xFF34D399) : Colors.white54,
                         ),
-                        SizedBox(height: 4),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _isSyncEnabled,
+                  activeColor: const Color(0xFF3B82F6),
+                  onChanged: (val) {
+                    setState(() {
+                      _isSyncEnabled = val;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Live Synced Clipboard Card
+          const Text(
+            'ACTIVE CLIPBOARD BUFFER',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(LucideIcons.clipboardCheck, size: 16, color: Color(0xFF60A5FA)),
+                        SizedBox(width: 6),
                         Text(
-                          "Connected • AES-256 Encrypted",
-                          style: TextStyle(color: Colors.greenAccent, fontSize: 12),
+                          'Windows ⇄ Android in Sync',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF60A5FA), fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
+                    const Text('Just now', style: TextStyle(fontSize: 11, color: Colors.white38)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _lastSyncedText,
+                  style: const TextStyle(fontSize: 14, color: Colors.white, fontFamily: 'monospace'),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Recent Synced Items',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _clipboardHistory.length,
-                itemBuilder: (context, index) {
-                  final item = _clipboardHistory[index];
-                  return Card(
-                    color: Colors.white.withOpacity(0.04),
+          ),
+          const SizedBox(height: 24),
+
+          // Action Shortcuts
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      title: Text(
-                        item.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        '${item.sourcePlatform} • just now',
-                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.copy, size: 18),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: item.content));
-                        },
-                      ),
-                    ),
-                  );
-                },
+                  ),
+                  icon: const Icon(LucideIcons.scanLine, size: 18, color: Colors.white),
+                  label: const Text('Pair with QR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    _bluetoothService.startScan();
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF3B82F6)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(LucideIcons.fileUp, size: 18, color: Color(0xFF60A5FA)),
+                  label: const Text('Send File', style: TextStyle(color: Color(0xFF60A5FA), fontWeight: FontWeight.bold)),
+                  onPressed: () {},
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

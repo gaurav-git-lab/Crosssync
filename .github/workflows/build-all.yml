@@ -11,7 +11,7 @@ on:
 
 jobs:
   # ==========================================
-  # 💻 JOB 1: Build Windows Desktop App (.exe & .msi)
+  # 💻 JOB 1: Build Windows Desktop App (.exe / .msi)
   # ==========================================
   build-windows-desktop:
     name: Build Windows Desktop (.exe / .msi)
@@ -21,29 +21,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Cache Cargo Dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            desktop/src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock', 'desktop/src-tauri/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      - name: Generate Desktop App Icons
+        run: node ./scripts/generate-icons.cjs
 
       - name: Install Frontend Dependencies
         run: npm install
@@ -59,9 +48,11 @@ jobs:
         with:
           name: CrossSync-Windows-Installer-x64
           path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/*.exe
             desktop/src-tauri/target/release/bundle/nsis/*.exe
             desktop/src-tauri/target/release/bundle/msi/*.msi
-            desktop/src-tauri/target/release/crosssync-desktop.exe
           if-no-files-found: warn
 
   # ==========================================
@@ -85,26 +76,20 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
 
-      - name: Check Flutter Version
-        run: flutter --version
+      - name: Generate Mobile App Icons
+        run: node ./scripts/generate-icons.cjs
 
-      - name: Install Mobile Flutter Dependencies
+      - name: Prepare Flutter Android Project
         working-directory: ./mobile
-        run: flutter pub get
+        run: |
+          mkdir -p assets/icons
+          flutter create . --platforms=android --org=com.crosssync --project-name=crosssync_mobile --overwrite
+          flutter pub get
 
       - name: Build Android Release APK
         working-directory: ./mobile
-        run: |
-          # If android platform folder is initialized, build apk
-          if [ -d "android" ]; then
-            flutter build apk --release
-          else
-            # Initialize android project wrapper if needed and build
-            flutter create . --platforms=android --org=com.crosssync
-            flutter build apk --release
-          fi
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload Android Release APK (.apk)
         uses: actions/upload-artifact@v4
