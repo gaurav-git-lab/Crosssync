@@ -1,0 +1,45 @@
+[package]
+name = "crosssync-desktop"
+version = "1.0.0"
+description = "CrossSync Windows Desktop App powered by Tauri"
+authors = ["CrossSync Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tokio = { version = "1.36", features = ["full"] }
+uuid = { version = "1.7", features = ["v4", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# Encryption & Security
+aes-gcm = "0.10"
+rand = "0.8"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+
+# Windows Native Clipboard & IO
+arboard = "3.3"
+tempfile = "3.10"
+tokio-util = "0.7"
+crc32fast = "1.4"
+
+# Windows APIs
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.54", features = [
+    "Devices_Bluetooth",
+    "Devices_Bluetooth_Advertisement",
+    "Devices_Radios",
+    "Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_DataExchange",
+    "Win32_System_Power"
+] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
