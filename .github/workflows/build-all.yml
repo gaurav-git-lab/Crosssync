@@ -84,7 +84,6 @@ jobs:
         working-directory: ./mobile
         run: |
           mkdir -p assets/icons
-          flutter create . --platforms=android --org=com.crosssync --project-name=crosssync_mobile --overwrite
           flutter pub get
 
       - name: Build Android Release APK
