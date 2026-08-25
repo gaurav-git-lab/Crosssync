@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -77,14 +77,15 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Generate App Icons & Prepare Workspace
-        run: |
-          mkdir -p mobile/assets/icons
-          node ./scripts/generate-icons.cjs
+      - name: Generate Mobile App Icons
+        run: node ./scripts/generate-icons.cjs
 
-      - name: Get Flutter Dependencies
+      - name: Prepare Flutter Android Project
         working-directory: ./mobile
-        run: flutter pub get
+        run: |
+          mkdir -p assets/icons
+          flutter create . --platforms=android --org=com.crosssync --project-name=crosssync_mobile --overwrite
+          flutter pub get
 
       - name: Build Android Release APK
         working-directory: ./mobile
