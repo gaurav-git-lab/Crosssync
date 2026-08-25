@@ -9,10 +9,6 @@ pub async fn prepare_file_transfer(
     state: State<'_, Arc<AppState>>,
 ) -> Result<FileMetaInfo, String> {
     let (meta, _raw_data) = state.file_engine.prepare_file_meta(&file_path).await?;
-    println!(
-        "[Tauri Command] Prepared file transfer: {} ({} bytes, {} chunks)",
-        meta.file_name, meta.file_size, meta.total_chunks
-    );
     Ok(meta)
 }
 
