@@ -13,7 +13,6 @@ use db::DatabaseManager;
 use file::FileTransferEngine;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeviceInfo {
