@@ -54,7 +54,7 @@ impl RfcommSocket {
     }
 
     /// Process and decrypt incoming raw packet buffer
-    pub async fn process_incoming_packet(&self, packet_type: u8, data: &[u8]) -> Result<Vec<u8>, String> {
+    pub async fn process_incoming_packet(&self, _packet_type: u8, data: &[u8]) -> Result<Vec<u8>, String> {
         if let Some(ref cipher) = self.cipher {
             cipher.decrypt(data)
         } else {
